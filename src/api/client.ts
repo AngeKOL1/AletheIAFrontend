@@ -1,16 +1,21 @@
-import axios, { AxiosError } from 'axios';
-import type { ErrorType, ProblemDetail } from '../types/api';
+import axios, { AxiosError, type AxiosResponse } from 'axios';
+import type { z } from 'zod';
+import type { ErrorType } from '../types/api';
 import { useAuthStore } from '../store/authStore';
+import { problemDetailEsquema } from './esquemas';
+
+/** Tipos de error del backend + los que detecta el propio frontend. */
+export type TipoError = ErrorType | 'NetworkError' | 'InvalidResponse';
 
 /** Error normalizado: toda falla HTTP llega a la UI con esta forma. */
 export class ApiError extends Error {
   readonly status: number;
-  readonly errorType: ErrorType | 'NetworkError';
+  readonly errorType: TipoError;
   readonly title: string;
 
   constructor(params: {
     status: number;
-    errorType: ErrorType | 'NetworkError';
+    errorType: TipoError;
     title: string;
     detail: string;
   }) {
@@ -27,6 +32,11 @@ export class ApiError extends Error {
   }
 }
 
+/*
+ * `esApiError` y `mensajeDeError` reciben lo que llega a un `catch`, que en
+ * TypeScript siempre es `unknown`. Son el único punto donde se acepta ese tipo:
+ * aquí se reduce a `ApiError` o a un mensaje genérico.
+ */
 export function esApiError(e: unknown): e is ApiError {
   return e instanceof ApiError;
 }
@@ -52,8 +62,23 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-function esProblemDetail(data: unknown): data is ProblemDetail {
-  return typeof data === 'object' && data !== null && 'status' in data && 'detail' in data;
+/**
+ * Valida el cuerpo de una respuesta con su esquema. Uso: `.then(recibir(esquema))`.
+ * Si el backend envía algo con otra forma, falla con un `ApiError` claro en lugar
+ * de dejar pasar datos incorrectos a la interfaz.
+ */
+export function recibir<T>(esquema: z.ZodType<T>) {
+  return (respuesta: AxiosResponse): T => {
+    const resultado = esquema.safeParse(respuesta.data);
+    if (resultado.success) return resultado.data;
+    console.error(`Respuesta inválida de ${respuesta.config.url}:`, resultado.error.issues);
+    throw new ApiError({
+      status: respuesta.status,
+      errorType: 'InvalidResponse',
+      title: 'Respuesta inesperada',
+      detail: 'El servidor envió datos con un formato inesperado. Inténtalo nuevamente más tarde.',
+    });
+  };
 }
 
 function normalizar(error: AxiosError): ApiError {
@@ -69,13 +94,15 @@ function normalizar(error: AxiosError): ApiError {
     });
   }
 
-  const { status, data } = error.response;
-  if (esProblemDetail(data)) {
+  const { status } = error.response;
+  const problema = problemDetailEsquema.safeParse(error.response.data);
+  if (problema.success) {
+    const p = problema.data;
     return new ApiError({
-      status: data.status ?? status,
-      errorType: data.errorType ?? 'UnexpectedError',
-      title: data.title ?? 'Error',
-      detail: data.detail || 'Ocurrió un error al procesar la solicitud.',
+      status: p.status,
+      errorType: p.errorType,
+      title: p.title,
+      detail: p.detail || 'Ocurrió un error al procesar la solicitud.',
     });
   }
 

@@ -1,6 +1,9 @@
 /**
  * Tipos de los DTOs expuestos por el backend Spring Boot.
  * Mantener sincronizado con los records/clases DTO de Java.
+ *
+ * Sin `null`: los datos del backend se validan en `api/esquemas.ts`, que
+ * convierte `null` en `''` (textos visibles) o en campos ausentes (`?`).
  */
 
 export type Fase = 'PRE' | 'POST';
@@ -18,23 +21,12 @@ export interface RegisterRequest {
   frecuenciaConsumoNoticias?: string;
 }
 
-export interface RegisterResponse {
-  id: number;
-  nombres: string;
-  apellidos: string;
-  correo: string;
-  edad: number | null;
-  genero: string | null;
-  nivelEducativo: string | null;
-  frecuenciaConsumoNoticias: string | null;
-  fechaRegistro: string;
-}
-
 export interface LoginRequest {
   correo: string;
   contrasena: string;
 }
 
+/** Roles conocidos; se acepta cualquier otro que envíe el backend. */
 export type Rol = 'PARTICIPANTE' | 'ADMIN' | (string & {});
 
 export interface LoginResponse {
@@ -54,7 +46,8 @@ export interface EstadoParticipante {
   prediccionesRespondidas: number;
   totalNoticias: number;
   cuestionarioCompletado: boolean;
-  sesionAbiertaId: number | null;
+  /** Ausente si el participante no tiene una sesión de cuestionario abierta. */
+  sesionAbiertaId?: number;
 }
 
 // ---------- Categorías ----------
@@ -71,17 +64,18 @@ export interface Categoria {
 /**
  * Noticia tal como la entrega el feed del pre test.
  * IMPORTANTE: no contiene (ni debe contener) la categoría real / ground truth.
+ * Los textos opcionales llegan como `''` cuando el backend no los tiene.
  */
 export interface NoticiaFeed {
   id: number;
   titular: string;
-  epigrafe: string | null;
-  subtitulo: string | null;
-  entradilla: string | null;
-  cuerpo: string | null;
-  cierre: string | null;
+  epigrafe: string;
+  subtitulo: string;
+  entradilla: string;
+  cuerpo: string;
+  cierre: string;
   img: string;
-  fuente: string | null;
+  fuente: string;
 }
 
 // ---------- Predicciones manuales ----------
@@ -93,11 +87,6 @@ export interface PrediccionManualRequest {
   ordenPresentacion: number;
   tiempoRespuestaSeg: number;
   confianzaAutopercibida: number;
-}
-
-export interface PrediccionManualResponse extends PrediccionManualRequest {
-  id: number;
-  [extra: string]: unknown;
 }
 
 // ---------- Cuestionario ----------
@@ -115,7 +104,8 @@ export interface SesionTest {
   id: number;
   fase: Fase;
   horaInicio: string;
-  horaFin: string | null;
+  /** Ausente mientras la sesión sigue abierta. */
+  horaFin?: string;
   titulo: string;
 }
 

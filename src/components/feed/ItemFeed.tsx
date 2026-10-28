@@ -31,28 +31,28 @@ export function ItemFeed({
   const cronometro = useCronometroEstimulo(seccionRef, activa && cronometroHabilitado);
   const tiempoAlElegirSeg = useRef(0);
 
-  const [seleccion, setSeleccion] = useState<Categoria | null>(null);
+  const [seleccion, setSeleccion] = useState<Categoria>();
   const [enviando, setEnviando] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string>();
 
   const elegirVeredicto = (c: Categoria) => {
     // El tiempo de respuesta se mide hasta el veredicto; la confianza no cuenta.
     cronometro.pausar();
     tiempoAlElegirSeg.current = cronometro.segundos();
-    setError(null);
+    setError(undefined);
     setSeleccion(c);
   };
 
   const cambiarVeredicto = () => {
-    setSeleccion(null);
-    setError(null);
+    setSeleccion(undefined);
+    setError(undefined);
     cronometro.reanudar();
   };
 
   const elegirConfianza = async (confianza: number) => {
     if (!seleccion || enviando) return;
     setEnviando(true);
-    setError(null);
+    setError(undefined);
     try {
       await prediccionesApi.registrar({
         noticiaId: noticia.id,

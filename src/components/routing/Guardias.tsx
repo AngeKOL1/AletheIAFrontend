@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { Navigate, useLocation, type Location } from 'react-router-dom';
 import { tokenVencido, useAuthStore } from '../../store/authStore';
 import { participanteApi } from '../../api/services';
+import { estadoNavegacionEsquema } from '../../api/esquemas';
 import { mensajeDeError } from '../../api/client';
 import { FASE_ACTUAL, POSTTEST_REQUIERE_PRETEST, RUTAS, rutaSegunEstado } from '../../lib/constants';
 import { PantallaEstado } from '../ui/PantallaEstado';
@@ -13,10 +14,10 @@ export interface EstadoNavegacion {
 
 /** Ruta a la que se vuelve tras iniciar sesión (por defecto, la Home). */
 export function destinoTrasLogin(location: Location): string {
-  const desde = (location.state as EstadoNavegacion | null)?.desde;
-  return desde && desde.startsWith('/') && desde !== RUTAS.login && desde !== RUTAS.registro
-    ? desde
-    : RUTAS.inicio;
+  const estado = estadoNavegacionEsquema.safeParse(location.state);
+  if (!estado.success) return RUTAS.inicio;
+  const { desde } = estado.data;
+  return desde === RUTAS.login || desde === RUTAS.registro ? RUTAS.inicio : desde;
 }
 
 /** Exige sesión iniciada; si el token venció, lo invalida y manda al login. */

@@ -11,6 +11,7 @@ import {
   TITULO_SESION_CUESTIONARIO,
 } from '../lib/constants';
 import type { ItemCuestionario, SesionTest } from '../types/api';
+import { borradorCuestionarioEsquema } from '../api/esquemas';
 import { PreguntaCuestionario } from '../components/cuestionario/PreguntaCuestionario';
 import { BarraProgreso } from '../components/ui/BarraProgreso';
 import { PantallaEstado } from '../components/ui/PantallaEstado';
@@ -25,7 +26,11 @@ const claveBorrador = (sesionId: number) => `pretest-cuestionario-borrador-${ses
 function leerBorrador(sesionId: number): Respuestas {
   try {
     const crudo = localStorage.getItem(claveBorrador(sesionId));
-    return crudo ? (JSON.parse(crudo) as Respuestas) : {};
+    if (!crudo) return {};
+    // Se valida lo guardado: si no tiene la forma esperada, se descarta.
+    const borrador = borradorCuestionarioEsquema.safeParse(JSON.parse(crudo));
+    if (!borrador.success) return {};
+    return Object.fromEntries(Object.entries(borrador.data).map(([id, valor]) => [Number(id), valor]));
   } catch {
     return {};
   }
@@ -49,16 +54,16 @@ function borrarBorrador(sesionId: number) {
 
 export function QuestionnairePage() {
   const navigate = useNavigate();
-  const [sesion, setSesion] = useState<SesionTest | null>(null);
+  const [sesion, setSesion] = useState<SesionTest>();
   const [items, setItems] = useState<ItemCuestionario[]>([]);
   const [respuestas, setRespuestas] = useState<Respuestas>({});
   const [pagina, setPagina] = useState(0);
   const [cargando, setCargando] = useState(true);
-  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [errorCarga, setErrorCarga] = useState<string>();
   const [intento, setIntento] = useState(0);
   const [faltantes, setFaltantes] = useState<Set<number>>(new Set());
   const [enviando, setEnviando] = useState(false);
-  const [errorEnvio, setErrorEnvio] = useState<string | null>(null);
+  const [errorEnvio, setErrorEnvio] = useState<string>();
   const loteEnviado = useRef(false);
   const topeRef = useRef<HTMLDivElement>(null);
 
@@ -66,7 +71,7 @@ export function QuestionnairePage() {
   useEffect(() => {
     let cancelado = false;
     setCargando(true);
-    setErrorCarga(null);
+    setErrorCarga(undefined);
     Promise.all([
       cuestionarioApi.iniciarSesion(FASE_ACTUAL, TITULO_SESION_CUESTIONARIO),
       cuestionarioApi.items(),
@@ -151,7 +156,7 @@ export function QuestionnairePage() {
     }
 
     setEnviando(true);
-    setErrorEnvio(null);
+    setErrorEnvio(undefined);
     try {
       if (!loteEnviado.current) {
         try {

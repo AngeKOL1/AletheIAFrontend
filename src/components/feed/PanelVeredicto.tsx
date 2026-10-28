@@ -4,9 +4,9 @@ import { Spinner } from '../ui/Spinner';
 
 interface Props {
   categorias: Categoria[];
-  seleccion: Categoria | null;
+  seleccion: Categoria | undefined;
   enviando: boolean;
-  error: string | null;
+  error: string | undefined;
   deshabilitado: boolean;
   onElegirVeredicto: (c: Categoria) => void;
   onElegirConfianza: (valor: number) => void;

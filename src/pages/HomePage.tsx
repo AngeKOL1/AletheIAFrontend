@@ -371,7 +371,7 @@ export function HomePage() {
 
   const primerNombre = usuario?.nombres?.split(' ')[0];
   const pretestCompleto = estado.tipo === 'ok' && estado.pre.cuestionarioCompletado;
-  const resumenPre = estado.tipo === 'ok' ? resumenPretest(estado.pre) : null;
+  const resumenPre = estado.tipo === 'ok' ? resumenPretest(estado.pre) : undefined;
 
   // ---- Etiquetas de las tarjetas de acceso
   const etiquetaPre =

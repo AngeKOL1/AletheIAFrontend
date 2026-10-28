@@ -25,7 +25,7 @@ export function LoginPage() {
   const location = useLocation();
   const iniciarSesion = useAuthStore((s) => s.iniciarSesion);
   const sesionExpirada = useAuthStore((s) => s.sesionExpirada);
-  const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  const [errorServidor, setErrorServidor] = useState<string>();
 
   const {
     register,
@@ -34,7 +34,7 @@ export function LoginPage() {
   } = useForm<Valores>({ resolver: zodResolver(esquema) });
 
   const onSubmit = async (v: Valores) => {
-    setErrorServidor(null);
+    setErrorServidor(undefined);
     try {
       const respuesta = await authApi.login({ correo: v.correo.trim(), contrasena: v.contrasena });
       iniciarSesion(respuesta);

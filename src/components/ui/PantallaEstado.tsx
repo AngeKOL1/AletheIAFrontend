@@ -10,7 +10,7 @@ export function PantallaEstado({
   mensaje = 'Cargando…',
 }: {
   cargando?: boolean;
-  error?: string | null;
+  error?: string;
   onReintentar?: () => void;
   mensaje?: ReactNode;
 }) {

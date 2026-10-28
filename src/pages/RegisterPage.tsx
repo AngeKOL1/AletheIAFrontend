@@ -66,7 +66,7 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const iniciarSesion = useAuthStore((s) => s.iniciarSesion);
-  const [errorServidor, setErrorServidor] = useState<string | null>(null);
+  const [errorServidor, setErrorServidor] = useState<string>();
 
   const {
     register,
@@ -89,7 +89,7 @@ export function RegisterPage() {
   });
 
   const onSubmit = async (v: Valores) => {
-    setErrorServidor(null);
+    setErrorServidor(undefined);
     const body = aRequest(v);
     try {
       await authApi.register(body);

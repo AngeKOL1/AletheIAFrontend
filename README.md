@@ -23,7 +23,8 @@ npm run preview
 src/
 ├── api/
 │   ├── client.ts          Axios + interceptores (JWT, ProblemDetail → ApiError, sesión vencida)
-│   └── services.ts        Un método por endpoint del backend
+│   ├── esquemas.ts        Zod: valida todo dato externo (backend y localStorage); null → '' u opcional
+│   └── services.ts        Un método por endpoint; cada respuesta pasa por su esquema
 ├── types/api.ts           Tipos de todos los DTOs
 ├── store/authStore.ts     Zustand persistido: token + usuario
 ├── hooks/

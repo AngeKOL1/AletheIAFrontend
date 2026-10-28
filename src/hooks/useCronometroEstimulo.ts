@@ -16,7 +16,7 @@ export function useCronometroEstimulo(
   habilitado: boolean,
 ) {
   const acumuladoMs = useRef(0);
-  const corriendoDesde = useRef<number | null>(null);
+  const corriendoDesde = useRef<number | undefined>(undefined);
   const visibleEnPantalla = useRef(false);
   const pausadoManual = useRef(false);
   const habilitadoRef = useRef(habilitado);
@@ -29,11 +29,11 @@ export function useCronometroEstimulo(
       !pausadoManual.current &&
       document.visibilityState === 'visible';
 
-    if (debeCorrer && corriendoDesde.current === null) {
+    if (debeCorrer && corriendoDesde.current === undefined) {
       corriendoDesde.current = performance.now();
-    } else if (!debeCorrer && corriendoDesde.current !== null) {
+    } else if (!debeCorrer && corriendoDesde.current !== undefined) {
       acumuladoMs.current += performance.now() - corriendoDesde.current;
-      corriendoDesde.current = null;
+      corriendoDesde.current = undefined;
     }
   }, []);
 
@@ -74,7 +74,7 @@ export function useCronometroEstimulo(
 
   const segundos = useCallback(() => {
     const enCurso =
-      corriendoDesde.current !== null ? performance.now() - corriendoDesde.current : 0;
+      corriendoDesde.current !== undefined ? performance.now() - corriendoDesde.current : 0;
     return (acumuladoMs.current + enCurso) / 1000;
   }, []);
 
