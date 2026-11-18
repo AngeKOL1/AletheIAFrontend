@@ -1,7 +1,5 @@
-import type { EstadoParticipante, NombreCategoria } from '../types/api';
+import type { NombreCategoria } from '../types/api';
 
-export const FASE_ACTUAL = 'PRE' as const;
-export const TITULO_SESION_CUESTIONARIO = 'Cuestionario Pre';
 export const APP_NOMBRE = 'Estudio sobre noticias en línea';
 
 /** Si es true, el posttest solo se habilita tras completar el pretest. */
@@ -12,21 +10,11 @@ export const RUTAS = {
   login: '/login',
   /** Home pública: explica el estudio y da acceso a pretest y posttest. */
   inicio: '/',
-  /** Entrada al pretest: redirige a feed / cuestionario / completado. */
+  /** Pretest (fase PRE). Sus pantallas cuelgan de aquí: ver `lib/fases.tsx`. */
   pretest: '/pretest',
-  /** Comprobación de noticias con IA (fase POST). */
+  /** Post test con AletheIA (fase POST). */
   posttest: '/posttest',
-  feed: '/feed',
-  cuestionario: '/cuestionario',
-  completado: '/completado',
 } as const;
-
-/** Decide a qué pantalla debe ir el participante según su progreso. */
-export function rutaSegunEstado(estado: EstadoParticipante): string {
-  if (estado.cuestionarioCompletado) return RUTAS.completado;
-  if (estado.prediccionesRespondidas < estado.totalNoticias) return RUTAS.feed;
-  return RUTAS.cuestionario;
-}
 
 /** Etiquetas visibles de las categorías de veredicto. */
 export const ETIQUETA_CATEGORIA: Record<NombreCategoria, string> = {
@@ -64,7 +52,9 @@ export const ESCALA_CONFIANZA: OpcionEscala[] = [
 
 export const ITEMS_POR_PAGINA = 5;
 
-// ---------- Opciones del registro (ajustar a los valores que espera el backend) ----------
+// ---------- Opciones del registro ----------
+// Deben coincidir EXACTAMENTE con los valores que acepta el backend (un valor
+// fuera de la lista da 400). No cambiarlas sin cambiar también el backend.
 
 export const OPCIONES_GENERO = ['Femenino', 'Masculino', 'Otro', 'Prefiero no decirlo'];
 

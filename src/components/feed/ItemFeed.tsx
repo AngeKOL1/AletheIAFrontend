@@ -2,10 +2,11 @@ import { useRef, useState } from 'react';
 import type { Categoria, NoticiaFeed } from '../../types/api';
 import { prediccionesApi } from '../../api/services';
 import { esApiError, mensajeDeError } from '../../api/client';
-import { FASE_ACTUAL } from '../../lib/constants';
+import { useFase } from '../../lib/fases';
 import { useCronometroEstimulo } from '../../hooks/useCronometroEstimulo';
 import { NoticiaCard } from './NoticiaCard';
 import { PanelVeredicto } from './PanelVeredicto';
+import { NoticiaConAnalisis } from '../analisis/NoticiaConAnalisis';
 
 interface Props {
   noticia: NoticiaFeed;
@@ -27,6 +28,7 @@ export function ItemFeed({
   cronometroHabilitado,
   onRespondida,
 }: Props) {
+  const { fase } = useFase();
   const seccionRef = useRef<HTMLElement>(null);
   const cronometro = useCronometroEstimulo(seccionRef, activa && cronometroHabilitado);
   const tiempoAlElegirSeg = useRef(0);
@@ -57,7 +59,7 @@ export function ItemFeed({
       await prediccionesApi.registrar({
         noticiaId: noticia.id,
         categoriaElegidaId: seleccion.id,
-        fase: FASE_ACTUAL,
+        fase,
         ordenPresentacion,
         // El backend espera un entero; mínimo 1 s para evitar ceros por redondeo.
         tiempoRespuestaSeg: Math.max(1, Math.round(tiempoAlElegirSeg.current)),
@@ -83,9 +85,16 @@ export function ItemFeed({
       aria-label={`Noticia ${ordenPresentacion}`}
       className="flex h-full snap-start snap-always flex-col"
     >
-      {/* El texto se lee con scroll interno; el panel queda fijo abajo. */}
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <NoticiaCard noticia={noticia} prioridadImagen={activa} />
+      {/* El texto se lee con scroll interno; el panel de veredicto queda fijo abajo. */}
+      <div className="min-h-0 flex-1">
+        {fase === 'POST' ? (
+          // Post test: el análisis de AletheIA está disponible ANTES de dar el veredicto.
+          <NoticiaConAnalisis noticia={noticia} activa={activa} />
+        ) : (
+          <div className="h-full overflow-y-auto overscroll-contain">
+            <NoticiaCard noticia={noticia} prioridadImagen={activa} />
+          </div>
+        )}
       </div>
       <PanelVeredicto
         categorias={categorias}

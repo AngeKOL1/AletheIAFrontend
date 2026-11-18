@@ -19,6 +19,8 @@ export interface RegisterRequest {
   genero?: string;
   nivelEducativo?: string;
   frecuenciaConsumoNoticias?: string;
+  medioComunicacion?: string;
+  cargo?: string;
 }
 
 export interface LoginRequest {
@@ -26,8 +28,7 @@ export interface LoginRequest {
   contrasena: string;
 }
 
-/** Roles conocidos; se acepta cualquier otro que envíe el backend. */
-export type Rol = 'PARTICIPANTE' | 'ADMIN' | (string & {});
+export type Rol = 'PARTICIPANTE' | 'INVESTIGADOR';
 
 export interface LoginResponse {
   token: string;
@@ -91,13 +92,27 @@ export interface PrediccionManualRequest {
 
 // ---------- Cuestionario ----------
 
-export type TipoRespuesta = 'likert_5' | (string & {});
+export type TipoRespuesta = 'likert_5' | 'texto';
+
+/** Dimensión del estudio que mide cada ítem. */
+export type Dimension =
+  | 'TASA_ACIERTO'
+  | 'TIEMPO_VERIFICACION'
+  | 'CLASIFICACION_NOTICIAS'
+  | 'USABILIDAD'
+  | 'FUNCIONALIDAD'
+  | 'RENDIMIENTO';
+
+/** PRE_POST: se aplica en ambas fases; SOLO_POST: solo en el post test (sobre el sistema). */
+export type FaseAplicacion = 'PRE_POST' | 'SOLO_POST';
 
 export interface ItemCuestionario {
   id: number;
   contenido: string;
   tipoRespuesta: TipoRespuesta;
   orden: number;
+  dimension: Dimension;
+  faseAplicacion: FaseAplicacion;
 }
 
 export interface SesionTest {
@@ -123,10 +138,14 @@ export interface RespuestasLoteRequest {
 
 export type ErrorType =
   | 'ValidationError'
+  | 'InvalidArgument'
   | 'AuthError'
+  | 'AccessDenied'
   | 'ModelNotFound'
-  | 'DataConflict'
   | 'InvalidState'
+  | 'DataConflict'
+  | 'VerificationServiceError'
+  | 'VerificationServiceBusy'
   | 'UnexpectedError';
 
 export interface ProblemDetail {
@@ -136,4 +155,8 @@ export interface ProblemDetail {
   detail: string;
   instance: string;
   errorType: ErrorType;
+  /** Errores de validación por campo (solo en 400 de validación). Vacío si no hay. */
+  campos: Record<string, string>;
+  /** Solo en 503 de AletheIA ocupado. */
+  reintentarEnSegundos?: number;
 }

@@ -1,4 +1,5 @@
-import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom';
+import type { ReactNode } from 'react';
+import { createBrowserRouter, Navigate, RouterProvider, type RouteObject } from 'react-router-dom';
 import { RutaProtegida, RutaPublica, GuardiaFlujo, GuardiaPosttest } from './components/routing/Guardias';
 import { RegisterPage } from './pages/RegisterPage';
 import { LoginPage } from './pages/LoginPage';
@@ -6,8 +7,35 @@ import { FeedPage } from './pages/FeedPage';
 import { QuestionnairePage } from './pages/QuestionnairePage';
 import { CompletedPage } from './pages/CompletedPage';
 import { HomePage } from './pages/HomePage';
-import { PosttestPage } from './pages/PosttestPage';
 import { RUTAS } from './lib/constants';
+import { FASES, ProveedorFase } from './lib/fases';
+import type { Fase } from './types/api';
+
+/**
+ * Rutas de una fase: entrada + feed + cuestionario + completado.
+ * Todas exigen sesión y pasan por GuardiaFlujo, que consulta el progreso
+ * en ESA fase. `envoltura` añade requisitos propios de la fase.
+ */
+function rutasDeFase(fase: Fase, envoltura: (contenido: ReactNode) => ReactNode): RouteObject[] {
+  const { rutas } = FASES[fase];
+  const proteger = (contenido: ReactNode) => (
+    <RutaProtegida>
+      <ProveedorFase fase={fase}>{envoltura(contenido)}</ProveedorFase>
+    </RutaProtegida>
+  );
+  return [
+    { path: rutas.entrada, element: proteger(<GuardiaFlujo />) },
+    { path: rutas.feed, element: proteger(<GuardiaFlujo paso="feed"><FeedPage /></GuardiaFlujo>) },
+    {
+      path: rutas.cuestionario,
+      element: proteger(<GuardiaFlujo paso="cuestionario"><QuestionnairePage /></GuardiaFlujo>),
+    },
+    {
+      path: rutas.completado,
+      element: proteger(<GuardiaFlujo paso="completado"><CompletedPage /></GuardiaFlujo>),
+    },
+  ];
+}
 
 const router = createBrowserRouter([
   // Home pública: cualquiera la ve; el login se pide al entrar a una fase.
@@ -29,55 +57,26 @@ const router = createBrowserRouter([
       </RutaPublica>
     ),
   },
-  {
-    // Entrada al pretest: decide feed / cuestionario / completado.
-    path: RUTAS.pretest,
-    element: (
-      <RutaProtegida>
-        <GuardiaFlujo />
-      </RutaProtegida>
-    ),
-  },
-  {
-    path: RUTAS.posttest,
-    element: (
-      <RutaProtegida>
-        <GuardiaPosttest>
-          <PosttestPage />
-        </GuardiaPosttest>
-      </RutaProtegida>
-    ),
-  },
-  {
-    path: RUTAS.feed,
-    element: (
-      <RutaProtegida>
-        <GuardiaFlujo paso="feed">
-          <FeedPage />
-        </GuardiaFlujo>
-      </RutaProtegida>
-    ),
-  },
-  {
-    path: RUTAS.cuestionario,
-    element: (
-      <RutaProtegida>
-        <GuardiaFlujo paso="cuestionario">
-          <QuestionnairePage />
-        </GuardiaFlujo>
-      </RutaProtegida>
-    ),
-  },
-  {
-    path: RUTAS.completado,
-    element: (
-      <RutaProtegida>
-        <GuardiaFlujo paso="completado">
-          <CompletedPage />
-        </GuardiaFlujo>
-      </RutaProtegida>
-    ),
-  },
+
+  ...rutasDeFase('PRE', (contenido) => contenido),
+  // El post test exige haber completado el pretest (ver POSTTEST_REQUIERE_PRETEST).
+  ...rutasDeFase('POST', (contenido) => <GuardiaPosttest>{contenido}</GuardiaPosttest>),
+
+  // Solo en desarrollo: revisar el panel de AletheIA con informes de ejemplo, sin backend.
+  // Carga diferida: en el build de producción esta rama y la demo no existen.
+  ...(import.meta.env.DEV
+    ? [
+        {
+          path: '/demo/analisis',
+          lazy: async () => ({ Component: (await import('./pages/DemoAnalisisPage')).DemoAnalisisPage }),
+        },
+      ]
+    : []),
+
+  // Rutas antiguas del pretest (antes de separar por fase).
+  { path: '/feed', element: <Navigate to={FASES.PRE.rutas.feed} replace /> },
+  { path: '/cuestionario', element: <Navigate to={FASES.PRE.rutas.cuestionario} replace /> },
+  { path: '/completado', element: <Navigate to={FASES.PRE.rutas.completado} replace /> },
   { path: '*', element: <Navigate to={RUTAS.inicio} replace /> },
 ]);
 

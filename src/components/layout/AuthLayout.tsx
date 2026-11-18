@@ -2,15 +2,18 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { APP_NOMBRE, RUTAS } from '../../lib/constants';
 
-export function Marca() {
+/** Logo + nombre del estudio. `textoClassName` permite ocultar el nombre en pantallas angostas. */
+export function Marca({ textoClassName = '' }: { textoClassName?: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="grid size-8 place-items-center rounded-lg bg-marca-700" aria-hidden>
+      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-marca-700" aria-hidden>
         <svg viewBox="0 0 32 32" className="size-5">
           <path d="M8 10h16M8 16h16M8 22h10" stroke="#fff" strokeWidth="2.6" strokeLinecap="round" />
         </svg>
       </span>
-      <span className="text-[15px] font-semibold tracking-tight text-tinta">{APP_NOMBRE}</span>
+      <span className={`text-[15px] font-semibold tracking-tight whitespace-nowrap text-tinta ${textoClassName}`}>
+        {APP_NOMBRE}
+      </span>
     </div>
   );
 }

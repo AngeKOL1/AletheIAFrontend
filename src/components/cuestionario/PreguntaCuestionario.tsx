@@ -1,5 +1,5 @@
 import type { ComponentType } from 'react';
-import type { ItemCuestionario } from '../../types/api';
+import type { ItemCuestionario, TipoRespuesta } from '../../types/api';
 import { ESCALA_LIKERT_5 } from '../../lib/constants';
 import { EscalaLikert } from './EscalaLikert';
 
@@ -39,14 +39,14 @@ function RespuestaTextoLibre({ item, valor, onCambio, invalido }: PropsRespuesta
  * Registro de tipos de respuesta. Para soportar un tipo nuevo (p. ej. "likert_7"),
  * crea su componente y agrégalo aquí; el resto del cuestionario no cambia.
  */
-const RENDERIZADORES: Record<string, ComponentType<PropsRespuesta>> = {
+const RENDERIZADORES: Record<TipoRespuesta, ComponentType<PropsRespuesta>> = {
   likert_5: RespuestaLikert5,
   texto: RespuestaTextoLibre,
 };
 
 export function PreguntaCuestionario(props: PropsRespuesta & { numero: number }) {
   const { item, numero, invalido } = props;
-  const Renderizador = RENDERIZADORES[item.tipoRespuesta] ?? RespuestaLikert5;
+  const Renderizador = RENDERIZADORES[item.tipoRespuesta];
 
   return (
     <div

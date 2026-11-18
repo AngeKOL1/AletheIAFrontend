@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { authApi } from '../api/services';
-import { mensajeDeError } from '../api/client';
+import { esApiError, mensajeDeError } from '../api/client';
 import { useAuthStore } from '../store/authStore';
 import { AuthLayout } from '../components/layout/AuthLayout';
 import { SelectField, TextField } from '../components/ui/Field';
@@ -21,12 +21,25 @@ import {
 import type { RegisterRequest } from '../types/api';
 import { destinoTrasLogin } from '../components/routing/Guardias';
 
+/** Opcional, pero si se elige debe ser exactamente uno de los valores que acepta el backend. */
+const opcionDe = (opciones: readonly string[]) =>
+  z.string().refine((v) => v === '' || opciones.includes(v), 'Elige una opción de la lista.');
+
+/** Límites alineados con las validaciones del backend (guía 4.3). */
 const esquema = z
   .object({
-    nombres: z.string().trim().min(1, 'Ingresa tus nombres.').max(100, 'Máximo 100 caracteres.'),
-    apellidos: z.string().trim().min(1, 'Ingresa tus apellidos.').max(100, 'Máximo 100 caracteres.'),
-    correo: z.string().trim().min(1, 'Ingresa tu correo.').email('Ingresa un correo válido.'),
-    contrasena: z.string().min(8, 'La contraseña debe tener al menos 8 caracteres.'),
+    nombres: z.string().trim().min(1, 'Ingresa tus nombres.').max(255, 'Máximo 255 caracteres.'),
+    apellidos: z.string().trim().min(1, 'Ingresa tus apellidos.').max(255, 'Máximo 255 caracteres.'),
+    correo: z
+      .string()
+      .trim()
+      .min(1, 'Ingresa tu correo.')
+      .max(255, 'Máximo 255 caracteres.')
+      .email('Ingresa un correo válido, con dominio (p. ej. nombre@medio.com).'),
+    contrasena: z
+      .string()
+      .min(8, 'La contraseña debe tener al menos 8 caracteres.')
+      .max(72, 'La contraseña puede tener como máximo 72 caracteres.'),
     confirmarContrasena: z.string().min(1, 'Repite tu contraseña.'),
     edad: z
       .string()
@@ -35,9 +48,11 @@ const esquema = z
         (v) => v === '' || (/^\d+$/.test(v) && +v >= EDAD_MINIMA && +v <= EDAD_MAXIMA),
         `Ingresa una edad entre ${EDAD_MINIMA} y ${EDAD_MAXIMA} años.`,
       ),
-    genero: z.string(),
-    nivelEducativo: z.string(),
-    frecuenciaConsumoNoticias: z.string(),
+    genero: opcionDe(OPCIONES_GENERO),
+    nivelEducativo: opcionDe(OPCIONES_NIVEL_EDUCATIVO),
+    frecuenciaConsumoNoticias: opcionDe(OPCIONES_FRECUENCIA_NOTICIAS),
+    medioComunicacion: z.string().trim().max(255, 'Máximo 255 caracteres.'),
+    cargo: z.string().trim().max(255, 'Máximo 255 caracteres.'),
     consentimiento: z.boolean().refine((v) => v, 'Debes aceptar participar para continuar.'),
   })
   .refine((d) => d.contrasena === d.confirmarContrasena, {
@@ -46,6 +61,24 @@ const esquema = z
   });
 
 type Valores = z.infer<typeof esquema>;
+
+/** Campos del formulario que el backend puede marcar en `campos` (mismo nombre que en el request). */
+const CAMPOS_SERVIDOR = [
+  'nombres',
+  'apellidos',
+  'correo',
+  'contrasena',
+  'edad',
+  'genero',
+  'nivelEducativo',
+  'frecuenciaConsumoNoticias',
+  'medioComunicacion',
+  'cargo',
+] as const satisfies readonly (keyof Valores)[];
+
+type CampoServidor = (typeof CAMPOS_SERVIDOR)[number];
+
+const campoDelFormulario = (clave: string): CampoServidor | undefined => CAMPOS_SERVIDOR.find((c) => c === clave);
 
 /** Convierte cadenas vacías de campos opcionales en `undefined`. */
 function aRequest(v: Valores): RegisterRequest {
@@ -59,6 +92,8 @@ function aRequest(v: Valores): RegisterRequest {
     genero: opcional(v.genero),
     nivelEducativo: opcional(v.nivelEducativo),
     frecuenciaConsumoNoticias: opcional(v.frecuenciaConsumoNoticias),
+    medioComunicacion: opcional(v.medioComunicacion),
+    cargo: opcional(v.cargo),
   };
 }
 
@@ -71,6 +106,7 @@ export function RegisterPage() {
   const {
     register,
     handleSubmit,
+    setError,
     formState: { errors, isSubmitting },
   } = useForm<Valores>({
     resolver: zodResolver(esquema),
@@ -84,6 +120,8 @@ export function RegisterPage() {
       genero: '',
       nivelEducativo: '',
       frecuenciaConsumoNoticias: '',
+      medioComunicacion: '',
+      cargo: '',
       consentimiento: false,
     },
   });
@@ -94,6 +132,19 @@ export function RegisterPage() {
     try {
       await authApi.register(body);
     } catch (e) {
+      if (esApiError(e)) {
+        // Errores de validación por campo: se muestran junto a cada input.
+        const sinCampo: string[] = [];
+        for (const [clave, mensaje] of Object.entries(e.campos)) {
+          const campo = campoDelFormulario(clave);
+          if (campo) setError(campo, { message: mensaje });
+          else sinCampo.push(mensaje);
+        }
+        // 409: correo ya registrado.
+        if (e.status === 409) setError('correo', { message: e.detail });
+        else setErrorServidor(sinCampo.length > 0 ? `${e.detail}: ${sinCampo.join(' ')}` : e.detail);
+        return;
+      }
       setErrorServidor(mensajeDeError(e));
       return;
     }
@@ -110,7 +161,7 @@ export function RegisterPage() {
   return (
     <AuthLayout
       titulo="Participa en el estudio"
-      subtitulo="Leerás 20 noticias, indicarás si te parecen verdaderas, engañosas, no verificables o falsas, y al final responderás un breve cuestionario."
+      subtitulo="Leerás una serie de noticias, indicarás si te parecen verdaderas, engañosas, no verificables o falsas, y al final responderás un breve cuestionario."
       pie={
         <>
           ¿Ya tienes una cuenta?{' '}
@@ -139,7 +190,7 @@ export function RegisterPage() {
           etiqueta="Contraseña"
           type="password"
           autoComplete="new-password"
-          ayuda="Mínimo 8 caracteres."
+          ayuda="Entre 8 y 72 caracteres."
           error={errors.contrasena?.message}
           {...register('contrasena')}
         />
@@ -162,18 +213,46 @@ export function RegisterPage() {
               error={errors.edad?.message}
               {...register('edad')}
             />
-            <SelectField etiqueta="Género" opcional opciones={OPCIONES_GENERO} {...register('genero')} />
+            <SelectField
+              etiqueta="Género"
+              opcional
+              opciones={OPCIONES_GENERO}
+              error={errors.genero?.message}
+              {...register('genero')}
+            />
             <SelectField
               etiqueta="Nivel educativo"
               opcional
               opciones={OPCIONES_NIVEL_EDUCATIVO}
+              error={errors.nivelEducativo?.message}
               {...register('nivelEducativo')}
             />
             <SelectField
               etiqueta="¿Con qué frecuencia consumes noticias?"
               opcional
               opciones={OPCIONES_FRECUENCIA_NOTICIAS}
+              error={errors.frecuenciaConsumoNoticias?.message}
               {...register('frecuenciaConsumoNoticias')}
+            />
+          </div>
+        </div>
+
+        <div className="border-t border-borde pt-5">
+          <p className="mb-4 text-sm font-semibold text-tinta">Datos profesionales</p>
+          <div className="space-y-5">
+            <TextField
+              etiqueta="Medio de comunicación"
+              opcional
+              autoComplete="organization"
+              error={errors.medioComunicacion?.message}
+              {...register('medioComunicacion')}
+            />
+            <TextField
+              etiqueta="Cargo"
+              opcional
+              autoComplete="organization-title"
+              error={errors.cargo?.message}
+              {...register('cargo')}
             />
           </div>
         </div>

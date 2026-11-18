@@ -12,18 +12,26 @@ export class ApiError extends Error {
   readonly status: number;
   readonly errorType: TipoError;
   readonly title: string;
+  /** Errores de validación por campo (clave = nombre del campo enviado). Vacío si no hay. */
+  readonly campos: Record<string, string>;
+  /** Solo cuando AletheIA está ocupado (503): segundos a esperar antes de reintentar. */
+  readonly reintentarEnSegundos?: number;
 
   constructor(params: {
     status: number;
     errorType: TipoError;
     title: string;
     detail: string;
+    campos?: Record<string, string>;
+    reintentarEnSegundos?: number;
   }) {
     super(params.detail);
     this.name = 'ApiError';
     this.status = params.status;
     this.errorType = params.errorType;
     this.title = params.title;
+    this.campos = params.campos ?? {};
+    this.reintentarEnSegundos = params.reintentarEnSegundos;
   }
 
   /** Mensaje legible para mostrar al participante. */
@@ -81,6 +89,12 @@ export function recibir<T>(esquema: z.ZodType<T>) {
   };
 }
 
+/** Lee la cabecera `Retry-After` (en segundos) si el backend la envía. */
+function segundosRetryAfter(error: AxiosError): number | undefined {
+  const valor = Number(error.response?.headers['retry-after']);
+  return Number.isFinite(valor) && valor > 0 ? valor : undefined;
+}
+
 function normalizar(error: AxiosError): ApiError {
   if (!error.response) {
     return new ApiError({
@@ -103,13 +117,16 @@ function normalizar(error: AxiosError): ApiError {
       errorType: p.errorType,
       title: p.title,
       detail: p.detail || 'Ocurrió un error al procesar la solicitud.',
+      campos: p.campos,
+      reintentarEnSegundos: p.reintentarEnSegundos ?? segundosRetryAfter(error),
     });
   }
 
   // Respuestas sin ProblemDetail (p. ej. 401/403 emitidos por Spring Security).
   const porDefecto: Record<number, { errorType: ErrorType; detail: string }> = {
     401: { errorType: 'AuthError', detail: 'Tu sesión expiró. Vuelve a iniciar sesión.' },
-    403: { errorType: 'AuthError', detail: 'No tienes permiso para realizar esta acción.' },
+    // 403 = sin permiso, NO sesión vencida: no se cierra la sesión.
+    403: { errorType: 'AccessDenied', detail: 'No tienes permiso para realizar esta acción.' },
     404: { errorType: 'ModelNotFound', detail: 'No se encontró el recurso solicitado.' },
     409: { errorType: 'DataConflict', detail: 'La operación entra en conflicto con datos existentes.' },
   };
@@ -120,15 +137,16 @@ function normalizar(error: AxiosError): ApiError {
   return new ApiError({ status, title: 'Error', ...conocido });
 }
 
-// Normaliza errores y cierra la sesión si el token ya no es válido.
+// Normaliza errores y cierra la sesión solo si el token ya no es válido (401).
 api.interceptors.response.use(
   (response) => response,
   (error: AxiosError) => {
     const apiError = normalizar(error);
     const esEndpointAuth = error.config?.url?.startsWith('/api/auth/') ?? false;
 
-    // En /api/auth un AuthError significa "credenciales incorrectas", no sesión vencida.
-    if (!esEndpointAuth && (apiError.status === 401 || apiError.errorType === 'AuthError')) {
+    // En /api/auth un 401 significa "credenciales incorrectas", no sesión vencida.
+    // Un 403 (AccessDenied) es falta de permiso: la sesión sigue abierta.
+    if (!esEndpointAuth && apiError.status === 401) {
       useAuthStore.getState().expirarSesion();
     }
     return Promise.reject(apiError);

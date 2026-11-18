@@ -4,14 +4,12 @@ import { cuestionarioApi } from '../api/services';
 import { esApiError, mensajeDeError } from '../api/client';
 import {
   ESCALA_LIKERT_5,
-  FASE_ACTUAL,
   INSTRUCCION_CUESTIONARIO,
   ITEMS_POR_PAGINA,
-  RUTAS,
-  TITULO_SESION_CUESTIONARIO,
 } from '../lib/constants';
 import type { ItemCuestionario, SesionTest } from '../types/api';
 import { borradorCuestionarioEsquema } from '../api/esquemas';
+import { useFase } from '../lib/fases';
 import { PreguntaCuestionario } from '../components/cuestionario/PreguntaCuestionario';
 import { BarraProgreso } from '../components/ui/BarraProgreso';
 import { PantallaEstado } from '../components/ui/PantallaEstado';
@@ -54,6 +52,7 @@ function borrarBorrador(sesionId: number) {
 
 export function QuestionnairePage() {
   const navigate = useNavigate();
+  const config = useFase();
   const [sesion, setSesion] = useState<SesionTest>();
   const [items, setItems] = useState<ItemCuestionario[]>([]);
   const [respuestas, setRespuestas] = useState<Respuestas>({});
@@ -73,8 +72,8 @@ export function QuestionnairePage() {
     setCargando(true);
     setErrorCarga(undefined);
     Promise.all([
-      cuestionarioApi.iniciarSesion(FASE_ACTUAL, TITULO_SESION_CUESTIONARIO),
-      cuestionarioApi.items(),
+      cuestionarioApi.iniciarSesion(config.fase, config.tituloSesion),
+      cuestionarioApi.items(config.fase),
     ])
       .then(([s, its]) => {
         if (cancelado) return;
@@ -85,9 +84,9 @@ export function QuestionnairePage() {
       })
       .catch((e) => {
         if (cancelado) return;
-        // 409: la sesión ya fue finalizada → ya completó el pre test.
+        // 409: la sesión ya fue finalizada → ya completó el cuestionario de esta fase.
         if (esApiError(e) && e.status === 409) {
-          navigate(RUTAS.completado, { replace: true });
+          navigate(config.rutas.completado, { replace: true });
           return;
         }
         setErrorCarga(mensajeDeError(e));
@@ -96,7 +95,7 @@ export function QuestionnairePage() {
     return () => {
       cancelado = true;
     };
-  }, [navigate, intento]);
+  }, [config, navigate, intento]);
 
   useEffect(() => {
     if (sesion) guardarBorrador(sesion.id, respuestas);
@@ -176,7 +175,7 @@ export function QuestionnairePage() {
         if (!(esApiError(e) && e.status === 409)) throw e;
       }
       borrarBorrador(sesion.id);
-      navigate(RUTAS.completado, { replace: true });
+      navigate(config.rutas.completado, { replace: true });
     } catch (e) {
       setErrorEnvio(mensajeDeError(e));
       setEnviando(false);

@@ -1,5 +1,7 @@
 import { api, recibir } from './client';
 import {
+  analisisEsquema,
+  analisisResumenEsquema,
   categoriaEsquema,
   conteoEsquema,
   estadoParticipanteEsquema,
@@ -23,6 +25,7 @@ import type {
   RespuestasLoteRequest,
   SesionTest,
 } from '../types/api';
+import type { Analisis, AnalisisResumen } from '../types/analisis';
 
 /*
  * Cada método valida la respuesta con su esquema (ver `esquemas.ts`).
@@ -71,8 +74,11 @@ export const prediccionesApi = {
 };
 
 export const cuestionarioApi = {
-  items: (): Promise<ItemCuestionario[]> =>
-    api.get('/api/items-cuestionario').then(recibir(z.array(itemCuestionarioEsquema))),
+  /** PRE devuelve 15 ítems; POST, 30 (15 comunes + 15 sobre el sistema). */
+  items: (fase: Fase): Promise<ItemCuestionario[]> =>
+    api
+      .get('/api/items-cuestionario', { params: { fase } })
+      .then(recibir(z.array(itemCuestionarioEsquema))),
   /** Idempotente: devuelve la sesión abierta si existe; 409 si ya fue finalizada. */
   iniciarSesion: (fase: Fase, titulo: string): Promise<SesionTest> =>
     api
@@ -82,4 +88,19 @@ export const cuestionarioApi = {
     api.post('/api/respuestas-cuestionario/lote', body).then(sinCuerpo),
   finalizarSesion: (id: number): Promise<void> =>
     api.put(`/api/sesiones-test/${id}/finalizar`).then(sinCuerpo),
+};
+
+/**
+ * Análisis con AletheIA (asíncrono, 1–3 min). El navegador nunca llama a
+ * AletheIA: todo pasa por el backend.
+ */
+export const analisisApi = {
+  /** Solicita el análisis (o se suma al existente). Responde 202 al instante. */
+  solicitar: (noticiaId: number): Promise<Analisis> =>
+    api.post(`/api/analisis/noticias/${noticiaId}`).then(recibir(analisisEsquema)),
+  /** Último análisis de esa noticia pedido por el usuario. 404 si no lo ha solicitado. */
+  consultar: (noticiaId: number): Promise<Analisis> =>
+    api.get(`/api/analisis/noticias/${noticiaId}`).then(recibir(analisisEsquema)),
+  misAnalisis: (): Promise<AnalisisResumen[]> =>
+    api.get('/api/analisis').then(recibir(z.array(analisisResumenEsquema))),
 };

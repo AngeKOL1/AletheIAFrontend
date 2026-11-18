@@ -4,6 +4,7 @@ import { participanteApi } from '../api/services';
 import { mensajeDeError } from '../api/client';
 import { tokenVencido, useAuthStore } from '../store/authStore';
 import { Marca } from '../components/layout/AuthLayout';
+import { EncabezadoInicio } from '../components/layout/EncabezadoInicio';
 import { Spinner } from '../components/ui/Spinner';
 import { Alert } from '../components/ui/Alert';
 import type { EstadoNavegacion } from '../components/routing/Guardias';
@@ -319,15 +320,17 @@ function TarjetaAnalisis() {
 type EstadoCarga =
   | { tipo: 'sin-sesion' }
   | { tipo: 'cargando' }
-  | { tipo: 'ok'; pre: EstadoParticipante }
+  /** `post` solo se consulta cuando el pretest está completo. */
+  | { tipo: 'ok'; pre: EstadoParticipante; post?: EstadoParticipante }
   | { tipo: 'error'; mensaje: string };
 
-function resumenPretest(pre: EstadoParticipante): { texto: string; tono: TonoEtiqueta; accion: string } {
-  if (pre.cuestionarioCompletado) return { texto: 'Completado', tono: 'exito', accion: 'Ver estado' };
-  if (pre.prediccionesRespondidas === 0) return { texto: 'Pendiente', tono: 'neutro', accion: 'Comenzar' };
-  if (pre.prediccionesRespondidas < pre.totalNoticias)
+/** Progreso de una fase (pretest o postest) en palabras. */
+function resumenFase(e: EstadoParticipante): { texto: string; tono: TonoEtiqueta; accion: string } {
+  if (e.cuestionarioCompletado) return { texto: 'Completado', tono: 'exito', accion: 'Ver estado' };
+  if (e.prediccionesRespondidas === 0) return { texto: 'Pendiente', tono: 'neutro', accion: 'Comenzar' };
+  if (e.prediccionesRespondidas < e.totalNoticias)
     return {
-      texto: `En curso · ${pre.prediccionesRespondidas}/${pre.totalNoticias}`,
+      texto: `En curso · ${e.prediccionesRespondidas}/${e.totalNoticias}`,
       tono: 'progreso',
       accion: 'Continuar',
     };
@@ -355,9 +358,13 @@ export function HomePage() {
     }
     let cancelado = false;
     setEstado({ tipo: 'cargando' });
-    participanteApi
-      .estado('PRE')
-      .then((pre) => !cancelado && setEstado({ tipo: 'ok', pre }))
+    const cargar = async () => {
+      const pre = await participanteApi.estado('PRE');
+      const post = pre.cuestionarioCompletado ? await participanteApi.estado('POST') : undefined;
+      return { pre, post };
+    };
+    cargar()
+      .then(({ pre, post }) => !cancelado && setEstado({ tipo: 'ok', pre, post }))
       .catch((e) => !cancelado && setEstado({ tipo: 'error', mensaje: mensajeDeError(e) }));
     return () => {
       cancelado = true;
@@ -371,7 +378,8 @@ export function HomePage() {
 
   const primerNombre = usuario?.nombres?.split(' ')[0];
   const pretestCompleto = estado.tipo === 'ok' && estado.pre.cuestionarioCompletado;
-  const resumenPre = estado.tipo === 'ok' ? resumenPretest(estado.pre) : undefined;
+  const resumenPre = estado.tipo === 'ok' ? resumenFase(estado.pre) : undefined;
+  const resumenPost = estado.tipo === 'ok' && estado.post ? resumenFase(estado.post) : undefined;
 
   // ---- Etiquetas de las tarjetas de acceso
   const etiquetaPre =
@@ -393,12 +401,14 @@ export function HomePage() {
       <Icono nombre="candado" className="size-3.5" />
       Se habilita al completar el pretest
     </Etiqueta>
+  ) : resumenPost ? (
+    <Etiqueta tono={resumenPost.tono}>{resumenPost.texto}</Etiqueta>
   ) : (
     <Etiqueta tono="progreso">Disponible</Etiqueta>
   );
 
   const accionPre = !conSesion ? 'Iniciar sesión' : (resumenPre?.accion ?? 'Ingresar');
-  const accionPost = !conSesion ? 'Iniciar sesión' : 'Ingresar';
+  const accionPost = !conSesion ? 'Iniciar sesión' : (resumenPost?.accion ?? 'Ingresar');
 
   // Crear cuenta desde la Home lleva directo al pretest al terminar.
   const estadoRegistro: EstadoNavegacion = { desde: RUTAS.pretest };
@@ -406,51 +416,7 @@ export function HomePage() {
   return (
     <div className="min-h-full bg-papel">
       {/* ---------------- Encabezado ---------------- */}
-      <header className="sticky top-0 z-30 border-b border-borde/70 bg-papel/85 pt-[env(safe-area-inset-top)] backdrop-blur-md">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4">
-          <Link to={RUTAS.inicio} className="rounded-lg" aria-label="Inicio">
-            <Marca />
-          </Link>
-          <nav className="hidden items-center gap-7 text-sm font-medium text-tinta-suave md:flex" aria-label="Secciones">
-            <a href="#objetivo" className="hover:text-tinta">Objetivo</a>
-            <a href="#como-funciona" className="hover:text-tinta">Cómo funciona</a>
-            <a href="#que-medimos" className="hover:text-tinta">Qué medimos</a>
-            <a href="#participa" className="hover:text-tinta">Participa</a>
-          </nav>
-          <div className="flex shrink-0 items-center gap-2">
-            {conSesion ? (
-              <>
-                <span className="hidden text-sm text-tinta-suave sm:inline">
-                  Hola, <span className="font-semibold text-tinta">{primerNombre}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={salir}
-                  className="min-h-10 rounded-xl px-3 text-sm font-semibold whitespace-nowrap text-marca-700 hover:bg-marca-50"
-                >
-                  Cerrar sesión
-                </button>
-              </>
-            ) : (
-              <>
-                <Link
-                  to={RUTAS.login}
-                  className="inline-flex min-h-10 items-center rounded-xl px-3 text-sm font-semibold whitespace-nowrap text-marca-700 hover:bg-marca-50"
-                >
-                  Ingresar
-                </Link>
-                <Link
-                  to={RUTAS.registro}
-                  state={estadoRegistro}
-                  className="hidden min-h-10 items-center rounded-xl bg-marca-700 px-4 text-sm font-semibold whitespace-nowrap text-white hover:bg-marca-800 sm:inline-flex"
-                >
-                  Crear cuenta
-                </Link>
-              </>
-            )}
-          </div>
-        </div>
-      </header>
+      <EncabezadoInicio conSesion={conSesion} primerNombre={primerNombre} onSalir={salir} />
 
       <main>
         {/* ---------------- Hero ---------------- */}

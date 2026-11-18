@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { categoriasApi, noticiasApi, prediccionesApi } from '../api/services';
 import { mensajeDeError } from '../api/client';
-import { FASE_ACTUAL, RUTAS } from '../lib/constants';
+import { useFase } from '../lib/fases';
 import type { Categoria, NoticiaFeed } from '../types/api';
 import { ItemFeed } from '../components/feed/ItemFeed';
 import { BarraProgreso } from '../components/ui/BarraProgreso';
@@ -26,6 +26,7 @@ const reducirMovimiento = () =>
 
 export function FeedPage() {
   const navigate = useNavigate();
+  const config = useFase();
   const [estado, setEstado] = useState<Estado>({ tipo: 'cargando' });
   const [indice, setIndice] = useState(0);
   const [mostrarInstrucciones, setMostrarInstrucciones] = useState(false);
@@ -38,7 +39,7 @@ export function FeedPage() {
     setEstado({ tipo: 'cargando' });
     Promise.all([
       noticiasApi.feed(),
-      prediccionesApi.misIdsRespondidos(FASE_ACTUAL),
+      prediccionesApi.misIdsRespondidos(config.fase),
       categoriasApi.listar(),
     ])
       .then(([feed, idsRespondidos, categorias]) => {
@@ -49,7 +50,7 @@ export function FeedPage() {
           .filter((p) => !respondidas.has(p.noticia.id));
 
         if (pendientes.length === 0) {
-          navigate(RUTAS.cuestionario, { replace: true });
+          navigate(config.rutas.cuestionario, { replace: true });
           return;
         }
         setIndice(0);
@@ -67,7 +68,7 @@ export function FeedPage() {
     return () => {
       cancelado = true;
     };
-  }, [navigate, intento]);
+  }, [config, navigate, intento]);
 
   // Avance programático: el usuario no puede desplazarse libremente entre noticias.
   useLayoutEffect(() => {
@@ -85,11 +86,11 @@ export function FeedPage() {
   const alResponder = useCallback(() => {
     if (estado.tipo !== 'listo') return;
     if (indice + 1 >= estado.pendientes.length) {
-      navigate(RUTAS.cuestionario, { replace: true });
+      navigate(config.rutas.cuestionario, { replace: true });
     } else {
       setIndice((i) => i + 1);
     }
-  }, [estado, indice, navigate]);
+  }, [config, estado, indice, navigate]);
 
   if (estado.tipo === 'cargando') return <PantallaEstado cargando mensaje="Preparando las noticias…" />;
   if (estado.tipo === 'error')
@@ -103,8 +104,16 @@ export function FeedPage() {
     <div className="flex h-dvh flex-col bg-papel">
       <header className="z-10 border-b border-borde bg-superficie px-4 pt-[max(0.75rem,env(safe-area-inset-top))] pb-3">
         <div className="mx-auto flex w-full max-w-2xl flex-col gap-2.5">
-          <div className="hidden sm:block">
-            <Marca />
+          <div className="flex items-center justify-between gap-3">
+            <div className="hidden sm:block">
+              <Marca />
+            </div>
+            {config.fase === 'POST' && (
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-marca-50 px-2.5 py-1 text-xs font-semibold text-marca-700">
+                <span className="size-1.5 rounded-full bg-marca-600" />
+                Postest · Con apoyo de AletheIA
+              </span>
+            )}
           </div>
           <BarraProgreso actual={numeroVisible} total={total} />
         </div>
@@ -126,13 +135,46 @@ export function FeedPage() {
       </div>
 
       {mostrarInstrucciones && (
-        <Instrucciones total={total} onComenzar={() => setMostrarInstrucciones(false)} />
+        <Instrucciones
+          total={total}
+          conAnalisis={config.fase === 'POST'}
+          onComenzar={() => setMostrarInstrucciones(false)}
+        />
       )}
     </div>
   );
 }
 
-function Instrucciones({ total, onComenzar }: { total: number; onComenzar: () => void }) {
+function Instrucciones({
+  total,
+  conAnalisis,
+  onComenzar,
+}: {
+  total: number;
+  /** Post test: explica el análisis con AletheIA. */
+  conAnalisis: boolean;
+  onComenzar: () => void;
+}) {
+  // Los pasos se numeran solos: el del análisis solo aparece en el post test.
+  const pasos: ReactNode[] = [
+    <>Verás {total} noticias, una a la vez. Léelas con atención; puedes desplazarte dentro de cada una.</>,
+    ...(conAnalisis
+      ? [
+          <>
+            Puedes pulsar <b className="text-tinta">Analizar con AletheIA</b>. El análisis tarda de 1 a 3 minutos y es
+            un apoyo: el veredicto final es tuyo.
+          </>,
+        ]
+      : []),
+    <>
+      Elige si la noticia te parece <b className="text-tinta">verdadera, engañosa, no verificable o falsa</b>.
+    </>,
+    <>Luego indica qué tan seguro(a) estás de tu respuesta, del 1 al 5.</>,
+    <>
+      No hay respuestas buenas ni malas: responde según tu propio criterio. Una vez respondida, no podrás volver a la
+      noticia.
+    </>,
+  ];
   return (
     <div
       role="dialog"
@@ -142,25 +184,15 @@ function Instrucciones({ total, onComenzar }: { total: number; onComenzar: () =>
     >
       <div className="w-full max-w-lg rounded-t-3xl bg-superficie px-6 pt-7 pb-[max(1.5rem,env(safe-area-inset-bottom))] shadow-xl sm:rounded-3xl">
         <h2 id="titulo-instrucciones" className="font-serif text-2xl font-semibold tracking-tight">
-          Antes de empezar
+          {conAnalisis ? 'Ahora con el apoyo del sistema' : 'Antes de empezar'}
         </h2>
         <ol className="mt-4 space-y-3 text-[15px] leading-relaxed text-tinta-suave">
-          <li className="flex gap-3">
-            <span className="font-semibold text-marca-700">1.</span>
-            <span>Verás {total} noticias, una a la vez. Léelas con atención; puedes desplazarte dentro de cada una.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-semibold text-marca-700">2.</span>
-            <span>Elige si la noticia te parece <b className="text-tinta">verdadera, engañosa, no verificable o falsa</b>.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-semibold text-marca-700">3.</span>
-            <span>Luego indica qué tan seguro(a) estás de tu respuesta, del 1 al 5.</span>
-          </li>
-          <li className="flex gap-3">
-            <span className="font-semibold text-marca-700">4.</span>
-            <span>No hay respuestas buenas ni malas: responde según tu propio criterio. Una vez respondida, no podrás volver a la noticia.</span>
-          </li>
+          {pasos.map((paso, n) => (
+            <li key={n} className="flex gap-3">
+              <span className="font-semibold text-marca-700">{n + 1}.</span>
+              <span>{paso}</span>
+            </li>
+          ))}
         </ol>
         <Button anchoCompleto className="mt-6" onClick={onComenzar}>
           Comenzar

@@ -26,6 +26,8 @@
   --color-peligro-600: #b42318;
   --color-exito-50: #effaf3;
   --color-exito-600: #1f7a45;
+  --color-aviso-50: #fdf6e7;
+  --color-aviso-600: #9a5b06;
 }
 
 @layer base {
@@ -50,6 +52,16 @@
   :focus-visible {
     outline: 2px solid var(--color-marca-500);
     outline-offset: 2px;
+  }
+}
+
+/* Barra indeterminada mientras AletheIA analiza. */
+@keyframes deslizar {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
   }
 }
 

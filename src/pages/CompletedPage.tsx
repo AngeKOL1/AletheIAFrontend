@@ -3,9 +3,11 @@ import { useAuthStore } from '../store/authStore';
 import { Button } from '../components/ui/Button';
 import { Marca } from '../components/layout/AuthLayout';
 import { RUTAS } from '../lib/constants';
+import { useFase } from '../lib/fases';
 
 export function CompletedPage() {
   const navigate = useNavigate();
+  const { fase } = useFase();
   const usuario = useAuthStore((s) => s.usuario);
   const cerrarSesion = useAuthStore((s) => s.cerrarSesion);
 
@@ -29,11 +31,13 @@ export function CompletedPage() {
           ¡Gracias{usuario?.nombres ? `, ${usuario.nombres.split(' ')[0]}` : ''}!
         </h1>
         <p className="mt-3 text-[16px] leading-relaxed text-tinta-suave">
-          Completaste el pre test. Tus respuestas quedaron registradas correctamente.
-          Tu participación es muy valiosa para esta investigación.
+          Completaste el {fase === 'PRE' ? 'pretest' : 'postest'}. Tus respuestas quedaron registradas
+          correctamente. Tu participación es muy valiosa para esta investigación.
         </p>
         <p className="mt-3 text-sm text-tinta-tenue">
-          Desde el inicio puedes continuar con la comprobación de noticias con IA.
+          {fase === 'PRE'
+            ? 'Desde el inicio puedes continuar con la comprobación de noticias con IA.'
+            : 'Has terminado las dos fases del estudio. Ya puedes cerrar esta ventana.'}
         </p>
         <div className="mx-auto mt-8 flex flex-col gap-3 sm:flex-row">
           <Button onClick={() => navigate(RUTAS.inicio)}>Volver al inicio</Button>

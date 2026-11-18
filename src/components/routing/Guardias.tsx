@@ -4,7 +4,8 @@ import { tokenVencido, useAuthStore } from '../../store/authStore';
 import { participanteApi } from '../../api/services';
 import { estadoNavegacionEsquema } from '../../api/esquemas';
 import { mensajeDeError } from '../../api/client';
-import { FASE_ACTUAL, POSTTEST_REQUIERE_PRETEST, RUTAS, rutaSegunEstado } from '../../lib/constants';
+import { POSTTEST_REQUIERE_PRETEST, RUTAS } from '../../lib/constants';
+import { rutaSegunEstado, useFase } from '../../lib/fases';
 import { PantallaEstado } from '../ui/PantallaEstado';
 
 /** Estado que viaja hacia login/registro para volver a la fase elegida. */
@@ -53,11 +54,12 @@ type EstadoGuardia =
   | { tipo: 'error'; mensaje: string };
 
 /**
- * Consulta el estado del participante y garantiza que solo pueda ver
- * la pantalla que le corresponde (no volver al feed, no repetir, etc.).
+ * Consulta el estado del participante EN LA FASE ACTUAL y garantiza que solo
+ * pueda ver la pantalla que le corresponde (no volver al feed, no repetir, etc.).
  * Si `paso` es undefined, simplemente redirige a donde corresponda.
  */
 export function GuardiaFlujo({ paso, children }: { paso?: Paso; children?: ReactNode }) {
+  const config = useFase();
   const [estado, setEstado] = useState<EstadoGuardia>({ tipo: 'cargando' });
   const [intento, setIntento] = useState(0);
   const location = useLocation();
@@ -66,11 +68,11 @@ export function GuardiaFlujo({ paso, children }: { paso?: Paso; children?: React
     let cancelado = false;
     setEstado({ tipo: 'cargando' });
     participanteApi
-      .estado(FASE_ACTUAL)
+      .estado(config.fase)
       .then((e) => {
         if (cancelado) return;
-        const destino = rutaSegunEstado(e);
-        if (!paso || destino !== RUTAS[paso]) setEstado({ tipo: 'redirigir', a: destino });
+        const destino = rutaSegunEstado(e, config);
+        if (!paso || destino !== config.rutas[paso]) setEstado({ tipo: 'redirigir', a: destino });
         else setEstado({ tipo: 'ok' });
       })
       .catch((err) => {
@@ -79,7 +81,7 @@ export function GuardiaFlujo({ paso, children }: { paso?: Paso; children?: React
     return () => {
       cancelado = true;
     };
-  }, [paso, intento, location.key]);
+  }, [config, paso, intento, location.key]);
 
   if (estado.tipo === 'cargando') return <PantallaEstado cargando mensaje="Verificando tu progreso…" />;
   if (estado.tipo === 'error')
